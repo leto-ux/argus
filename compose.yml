@@ -1,0 +1,51 @@
+name: argus
+
+networks:
+  webui-network:
+    ipam:
+      driver: default # i.e. its the bridge
+      config:
+        - subnet: "10.69.10.0/24"
+services:
+  argus-rust:
+    build:
+      context: ./app
+      dockerfile: ../argus-rust.Dockerfile # this is relative to the context dir
+    container_name: argus
+    devices:
+      - "/dev/video4:/dev/video4" # For your main webcam
+      - "/dev/video5:/dev/video5" # For your main webcam
+      - "/dev/media2:/dev/media2" # For your main webcam
+
+    # If your app needs access to a config file on the host
+    # volumes:
+    #   - ./config:/app/config
+    networks:
+      webui-network:
+        ipv4_address: 10.69.10.252
+    environment:
+      - RUST_LOG=info # Example: Set Rust logging level
+      # - CAMERA_DEVICE=/dev/video0 # Example: Pass device path as an env var to your app
+    # restart: unless-stopped # Keep the container running unless explicitly stopped
+  webui:
+    image: nginx
+    ports:
+      - "420:420"
+    networks:
+      webui-network:
+        ipv4_address: 10.69.10.253
+    depends_on:
+      - argus-rust
+
+  db: # as per https://hub.docker.com/_/postgres
+    image: postgres
+    # set shared memory limit when using docker compose
+    shm_size: 128mb
+    # or set shared memory limit when deploy via swarm stack
+    volumes:
+      - ./postgres:/var/lib/postres
+    environment:
+      POSTGRES_PASSWORD: admin
+    networks:
+      webui-network:
+        ipv4_address: 10.69.10.254
